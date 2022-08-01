@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -17,40 +19,59 @@ class PlayState extends State<Player> {
   String currentTime = "0:00";
   String maxTime = "-:--";
   int maxSecs = 0;
+  bool playing = true;
+
+  BoxDecoration decorations = BoxDecoration(
+    color: Colors.white,
+    borderRadius: const BorderRadius.all(Radius.circular(5)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.grey.withOpacity(0.5),
+        spreadRadius: 5,
+        blurRadius: 7,
+        offset: const Offset(0, 3), // changes position of shadow
+      ),
+    ],
+  );
+
+  Text timeRemaining = const Text("prova prova");
+
+  Widget displayState = Container();
+
+  @override
+  void didUpdateWidget(covariant Player oldWidget) {
+    log("fatto");
+    super.didUpdateWidget(oldWidget);
+  }
 
   @override
   void initState() {
-    player.onPlayerComplete.listen((event) {
-      setState(() {
-        status = "Nessun file in riproduzione";
-        time = 0;
-        currentTime = "0:00";
-        maxTime = "-:--";
-      });
-    });
+    timeRemaining = Text("$currentTime/$maxTime");
 
-    player.onPlayerStateChanged.listen((state) {
-      if (state != PlayerState.playing) {
-        status = "Nessun file in riproduzione";
-        time = 0;
-        currentTime = "0:00";
-        maxTime = "-:--";
-      }
+    displayState = ElevatedButton(
+        onPressed: () => loadFileAndStartPlayer(),
+        child: const Text("Seleziona file"));
+
+    player.onPlayerComplete.listen((event) {
+      playing = false;
+      log("finito");
+      resetPlaybackStatus();
     });
 
     player.onDurationChanged.listen((Duration d) {
+      playing = true;
       maxSecs = d.inSeconds;
       String mins = (maxSecs / 60).floor().toString();
       String secs = (maxSecs % 60).toString();
       if (secs.length == 1) {
         secs = "0$secs";
       }
-      setState(() {
-        maxTime = "$mins:$secs";
-      });
+      maxTime = "$mins:$secs";
+      updatePlaybackStatus();
     });
 
     player.onPositionChanged.listen((Duration d) {
+      log(player.state.name);
       int sec = d.inSeconds;
       //Qua ci va la gestione dei loop
       String mins = (sec / 60).floor().toString();
@@ -58,10 +79,11 @@ class PlayState extends State<Player> {
       if (secs.length == 1) {
         secs = "0$secs";
       }
-      setState(() {
-        currentTime = "$mins:$secs";
-        time = sec / maxSecs;
-      });
+      time = sec / maxSecs;
+      currentTime = "$mins:$secs";
+      if (playing && player.state.name == "playing") {
+        updatePlaybackStatus();
+      }
     });
 
     super.initState();
@@ -72,22 +94,70 @@ class PlayState extends State<Player> {
     screenWidth = MediaQuery.of(context).size.width;
     screenHeight = MediaQuery.of(context).size.height;
     //Graficamente da rivedere
-    return Card(
-      child: Center(
-          child: Column(
-        children: [
-          const Spacer(),
-          /*LinearProgressIndicator(
-            value: time,
-          ),*/
-          Text("$currentTime/$maxTime"),
-          ElevatedButton(
-              onPressed: () => loadFileAndStartPlayer(),
-              child: const Text("Seleziona file")),
-          Text(status),
-          const Spacer()
-        ],
-      )),
+    return Row(
+      children: [
+        Column(
+          children: [
+            //File selections
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Container(
+                height: screenHeight! * 0.90,
+                width: screenWidth! * 1 / 3,
+                decoration: decorations,
+              ),
+            )
+          ],
+        ),
+        Column(
+          children: [
+            //Playback screen
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 10, top: 10), //fromLTRB(10, 10, 15, 5),
+              child: Container(
+                  height: (screenHeight! * 1 / 3) - 20,
+                  width: (screenWidth! * 2 / 3) - 20,
+                  decoration: decorations,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+                    child: Center(
+                        child: Column(
+                      children: [
+                        const Spacer(),
+                        displayState,
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            status,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const Spacer()
+                      ],
+                    )),
+                  )),
+            ),
+
+            //Loop Screen
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 10, top: 10), //fromLTRB(10, 10, 15, 5),
+              child: Container(
+                  height: (screenHeight! * 0.90) - (screenHeight! * 1 / 3) + 10,
+                  width: (screenWidth! * 2 / 3) - 20,
+                  decoration: decorations,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
+                    child: Center(
+                        child: Column(
+                      children: [],
+                    )),
+                  )),
+            )
+          ],
+        )
+      ],
     );
   }
 
@@ -95,10 +165,61 @@ class PlayState extends State<Player> {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
       String file = result.files.single.path.toString();
+      status = "Riproduzione in corso di $file";
       player.play(UrlSource(file));
-      setState(() {
-        status = "Riproduzione in corso di $file";
-      });
+      updatePlaybackStatus();
     }
+  }
+
+  void updatePlaybackStatus() {
+    setState(() {
+      displayState = Padding(
+          padding: const EdgeInsets.all(0),
+          child: Center(
+            child: Row(children: [
+              const Spacer(),
+              Text("$currentTime/$maxTime"),
+              const SizedBox(
+                width: 5,
+                height: 1,
+              ),
+              Expanded(
+                  child: LinearProgressIndicator(
+                value: time,
+              )),
+              IconButton(
+                  onPressed: () {
+                    player.resume();
+                  },
+                  icon: const Icon(Icons.play_arrow)),
+              IconButton(
+                  onPressed: () {
+                    player.pause();
+                  },
+                  icon: const Icon(Icons.pause)),
+              IconButton(
+                  onPressed: () {
+                    player.stop();
+                    playing = false;
+                    resetPlaybackStatus();
+                  },
+                  icon: const Icon(Icons.stop)),
+              const Spacer()
+            ]),
+          ));
+    });
+  }
+
+  void resetPlaybackStatus() {
+    setState(() {
+      status = "Nessun file in riproduzione";
+      time = 0;
+      currentTime = "0:00";
+      maxTime = "-:--";
+      displayState = ElevatedButton(
+          onPressed: () => loadFileAndStartPlayer(),
+          child: const Text("Seleziona file"));
+      timeRemaining = Text("$currentTime/$maxTime");
+    });
   }
 }
