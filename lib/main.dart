@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import "player.dart";
+import "package:dynasfx/player.dart";
 
 void main() {
   runApp(const MyApp());

@@ -5,16 +5,16 @@ import 'package:file_picker/file_picker.dart';
 class Player extends StatefulWidget {
   const Player({Key? key}) : super(key: key);
   @override
-  State<Player> createState() => PlayerState();
+  State<Player> createState() => PlayState();
 }
 
-class PlayerState extends State<Player> {
+class PlayState extends State<Player> {
   double? screenWidth;
   double? screenHeight;
   final player = AudioPlayer();
   String status = "Nessun file in riproduzione";
   double time = 0;
-  String currentTime = "-:--";
+  String currentTime = "0:00";
   String maxTime = "-:--";
   int maxSecs = 0;
 
@@ -29,16 +29,24 @@ class PlayerState extends State<Player> {
       });
     });
 
+    player.onPlayerStateChanged.listen((state) {
+      if (state != PlayerState.playing) {
+        status = "Nessun file in riproduzione";
+        time = 0;
+        currentTime = "0:00";
+        maxTime = "-:--";
+      }
+    });
+
     player.onDurationChanged.listen((Duration d) {
-      int sec = d.inSeconds;
-      maxSecs = sec;
-      String mins = (sec / 60).floor().toString();
-      String secs = (sec % 60).toString();
+      maxSecs = d.inSeconds;
+      String mins = (maxSecs / 60).floor().toString();
+      String secs = (maxSecs % 60).toString();
       if (secs.length == 1) {
-        secs = "0" + secs;
+        secs = "0$secs";
       }
       setState(() {
-        maxTime = mins + ":" + secs;
+        maxTime = "$mins:$secs";
       });
     });
 
@@ -48,10 +56,10 @@ class PlayerState extends State<Player> {
       String mins = (sec / 60).floor().toString();
       String secs = (sec % 60).toString();
       if (secs.length == 1) {
-        secs = "0" + secs;
+        secs = "0$secs";
       }
       setState(() {
-        currentTime = mins + ":" + secs;
+        currentTime = "$mins:$secs";
         time = sec / maxSecs;
       });
     });
@@ -64,22 +72,20 @@ class PlayerState extends State<Player> {
     screenWidth = MediaQuery.of(context).size.width;
     screenHeight = MediaQuery.of(context).size.height;
     //Graficamente da rivedere
-    return Container(
-      width: screenWidth,
-      height: screenHeight,
+    return Card(
       child: Center(
           child: Column(
         children: [
-          Spacer(),
-          LinearProgressIndicator(
+          const Spacer(),
+          /*LinearProgressIndicator(
             value: time,
-          ),
-          Text(currentTime + "/" + maxTime),
+          ),*/
+          Text("$currentTime/$maxTime"),
           ElevatedButton(
               onPressed: () => loadFileAndStartPlayer(),
               child: const Text("Seleziona file")),
           Text(status),
-          Spacer()
+          const Spacer()
         ],
       )),
     );
@@ -91,7 +97,7 @@ class PlayerState extends State<Player> {
       String file = result.files.single.path.toString();
       player.play(UrlSource(file));
       setState(() {
-        status = "Riproduzione in corso di " + file;
+        status = "Riproduzione in corso di $file";
       });
     }
   }
