@@ -1,8 +1,8 @@
 import 'dart:developer';
-
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:dynasfx/helpers.dart';
 
 class Player extends StatefulWidget {
   const Player({Key? key}) : super(key: key);
@@ -11,19 +11,13 @@ class Player extends StatefulWidget {
 }
 
 class PlayState extends State<Player> {
-  double? screenWidth;
-  double? screenHeight;
+  Screen screen = Screen(0,0);
   final player = AudioPlayer();
-  String status = "Nessun file in riproduzione";
-  double time = 0;
-  String currentTime = "0:00";
-  String maxTime = "-:--";
-  int maxSecs = 0;
-  bool playing = true;
+  PlayerStatus playerStatus = PlayerStatus();
 
   BoxDecoration decorations = BoxDecoration(
     color: Colors.white,
-    borderRadius: const BorderRadius.all(Radius.circular(5)),
+    //borderRadius: const BorderRadius.all(Radius.circular(5)),
     boxShadow: [
       BoxShadow(
         color: Colors.grey.withOpacity(0.5),
@@ -33,40 +27,29 @@ class PlayState extends State<Player> {
       ),
     ],
   );
-
-  Text timeRemaining = const Text("prova prova");
-
   Widget displayState = Container();
 
   @override
-  void didUpdateWidget(covariant Player oldWidget) {
-    log("fatto");
-    super.didUpdateWidget(oldWidget);
-  }
-
-  @override
   void initState() {
-    timeRemaining = Text("$currentTime/$maxTime");
-
     displayState = ElevatedButton(
         onPressed: () => loadFileAndStartPlayer(),
         child: const Text("Seleziona file"));
 
     player.onPlayerComplete.listen((event) {
-      playing = false;
+      playerStatus.isAudioPlaying = false;
       log("finito");
       resetPlaybackStatus();
     });
 
     player.onDurationChanged.listen((Duration d) {
-      playing = true;
-      maxSecs = d.inSeconds;
-      String mins = (maxSecs / 60).floor().toString();
-      String secs = (maxSecs % 60).toString();
+      playerStatus.isAudioPlaying = true;
+      playerStatus.durationInSeconds = d.inSeconds;
+      String mins = (playerStatus.durationInSeconds / 60).floor().toString();
+      String secs = (playerStatus.durationInSeconds % 60).toString();
       if (secs.length == 1) {
         secs = "0$secs";
       }
-      maxTime = "$mins:$secs";
+      playerStatus.durationAsString = "$mins:$secs";
       updatePlaybackStatus();
     });
 
@@ -79,9 +62,9 @@ class PlayState extends State<Player> {
       if (secs.length == 1) {
         secs = "0$secs";
       }
-      time = sec / maxSecs;
-      currentTime = "$mins:$secs";
-      if (playing && player.state.name == "playing") {
+      playerStatus.timestampNowInSeconds = sec / playerStatus.durationInSeconds;
+      playerStatus.timestampNowAsString = "$mins:$secs";
+      if (playerStatus.isAudioPlaying && player.state.name == "playerStatus.isAudioPlaying") {
         updatePlaybackStatus();
       }
     });
@@ -91,9 +74,8 @@ class PlayState extends State<Player> {
 
   @override
   Widget build(BuildContext context) {
-    screenWidth = MediaQuery.of(context).size.width;
-    screenHeight = MediaQuery.of(context).size.height;
-    //Graficamente da rivedere
+    screen = Screen(MediaQuery.of(context).size.width, MediaQuery.of(context).size.height)
+    ;
     return Row(
       children: [
         Column(
@@ -102,8 +84,8 @@ class PlayState extends State<Player> {
             Padding(
               padding: const EdgeInsets.only(top: 10),
               child: Container(
-                height: screenHeight! * 0.90,
-                width: screenWidth! * 1 / 3,
+                height: screen.height * 0.90,
+                width: screen.width * 1 / 3,
                 decoration: decorations,
               ),
             )
@@ -116,8 +98,8 @@ class PlayState extends State<Player> {
               padding: const EdgeInsets.only(
                   left: 10, top: 10), //fromLTRB(10, 10, 15, 5),
               child: Container(
-                  height: (screenHeight! * 1 / 3) - 20,
-                  width: (screenWidth! * 2 / 3) - 20,
+                  height: (screen.height * 1 / 3) - 20,
+                  width: (screen.width * 2 / 3) - 20,
                   decoration: decorations,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
@@ -129,7 +111,7 @@ class PlayState extends State<Player> {
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: Text(
-                            status,
+                            playerStatus.pathStatusText,
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -144,14 +126,23 @@ class PlayState extends State<Player> {
               padding: const EdgeInsets.only(
                   left: 10, top: 10), //fromLTRB(10, 10, 15, 5),
               child: Container(
-                  height: (screenHeight! * 0.90) - (screenHeight! * 1 / 3) + 10,
-                  width: (screenWidth! * 2 / 3) - 20,
+                  height: (screen.height * 0.90) - (screen.height * 1 / 3) + 10,
+                  width: (screen.width * 2 / 3) - 20,
                   decoration: decorations,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
                     child: Center(
-                        child: Column(
-                      children: [],
+                        child: ListView(
+                      children: [
+                        Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              leading: Icon(Icons.add),
+                              title: Text("Aggiungi un nuovo loop"),
+                              onTap: () {showDialog(context: context, builder: );},
+                              hoverColor: Color.fromARGB(40, 0, 0, 0),
+                            ))
+                      ],
                     )),
                   )),
             )
@@ -165,7 +156,7 @@ class PlayState extends State<Player> {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
       String file = result.files.single.path.toString();
-      status = "Riproduzione in corso di $file";
+      playerStatus.pathStatusText = "Riproduzione in corso di $file";
       player.play(UrlSource(file));
       updatePlaybackStatus();
     }
@@ -178,14 +169,14 @@ class PlayState extends State<Player> {
           child: Center(
             child: Row(children: [
               const Spacer(),
-              Text("$currentTime/$maxTime"),
+              Text("$currentplayerStatus.timestampNowInSeconds/$playerStatus.durationAsString"),
               const SizedBox(
                 width: 5,
                 height: 1,
               ),
               Expanded(
                   child: LinearProgressIndicator(
-                value: time,
+                value: playerStatus.timestampNowInSeconds,
               )),
               IconButton(
                   onPressed: () {
@@ -200,7 +191,7 @@ class PlayState extends State<Player> {
               IconButton(
                   onPressed: () {
                     player.stop();
-                    playing = false;
+                    playerStatus.isAudioPlaying = false;
                     resetPlaybackStatus();
                   },
                   icon: const Icon(Icons.stop)),
@@ -212,14 +203,10 @@ class PlayState extends State<Player> {
 
   void resetPlaybackStatus() {
     setState(() {
-      status = "Nessun file in riproduzione";
-      time = 0;
-      currentTime = "0:00";
-      maxTime = "-:--";
+      playerStatus.reset();
       displayState = ElevatedButton(
           onPressed: () => loadFileAndStartPlayer(),
           child: const Text("Seleziona file"));
-      timeRemaining = Text("$currentTime/$maxTime");
     });
   }
 }
